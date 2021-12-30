@@ -6,7 +6,10 @@ const bodyParser = require("body-parser");
 const mongoose = require("mongoose");
 const ejs = require("ejs");
 const app = express();
-const encrypt = require("mongoose-encryption");
+//const md5 = require("md5");
+//const encrypt = require("mongoose-encryption");
+const bcrypt = require("bcrypt");
+const saltRounds = 10;
 
 app.set('view engine', 'ejs');
 app.use(express.static("public"));
@@ -21,7 +24,7 @@ const userSchema = new mongoose.Schema ({
   password: String
 });
 
-userSchema.plugin(encrypt, {secret: process.env.SECRET, encrpytedFields: ["password"], excludeFromEncryption: ["email"]});
+//userSchema.plugin(encrypt, {secret: process.env.SECRET, encrpytedFields: ["password"], excludeFromEncryption: ["email"]});
 
 const User = new mongoose.model("User", userSchema);
 
@@ -36,21 +39,29 @@ app.get("/register", function(req,res){
 });
 
 app.post("/register", function(req,res){
-  const newUser = new User({
-    email: req.body.username, //they are coming from ejs page
-    password: req.body.password //Capturing the user input
+  bcrypt.hash(req.body.password, saltRounds,function(err, hash){
+
+    const newUser = new User({
+      email: req.body.username, //they are coming from ejs page
+      password: hash
+    });
+
+    newUser.save(function(err){
+      if(err){
+        res.send(err);
+      }else{
+        res.render("secrets");
+      }
+    });
+
   });
 
-  newUser.save(function(err){
-    if(err){
-      res.send(err);
-    }else{
-      res.render("secrets");
-    }
-  });
 });
 
 app.post("/login", function(req,res){
+
+
+
   const username = req.body.username;
   const password = req.body.password;
 
@@ -58,10 +69,15 @@ app.post("/login", function(req,res){
     if(err){
       console.log(err);
     }else{
-      if(foundUser.password === password){
-        res.render("secrets");
-      }else{
-        res.send("Wrong Password!");
+      if(foundUser){
+        bcrypt.compare(password, foundUser.password, function(err, result){
+          if(result === true){
+            res.render("secrets");
+          }else{
+            console.log("Wrong Password");
+          }
+
+        });
       }
     }
   });
